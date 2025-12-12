@@ -4,6 +4,7 @@ import com.bank.poc.core.dto.TransactionRequest;
 import com.bank.poc.core.entity.Card;
 import com.bank.poc.core.entity.Transaction;
 import com.bank.poc.core.service.CardService;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -22,16 +23,26 @@ public class ProcessingController {
     }
 
     @PostMapping("/process")
-    public Map<String, String> process(@RequestBody TransactionRequest req) {
+    public ResponseEntity<Map<String, Object>> process(@RequestBody TransactionRequest req) {
         String result = cardService.processTransaction(
                 req.getCardNumber(),
                 req.getPin(),
                 req.getAmount(),
                 req.getType()
         );
-        Map<String, String> resp = new HashMap<>();
-        resp.put("result", result);
-        return resp;
+        Map<String, Object> resp = new HashMap<>();
+        
+        if (result.startsWith("SUCCESS")) {
+            Card card = cardService.getCard(req.getCardNumber());
+            resp.put("status", "SUCCESS");
+            resp.put("message", "Transaction processed successfully");
+            resp.put("newBalance", card != null ? card.getBalance() : 0);
+            return ResponseEntity.ok(resp);
+        } else {
+            resp.put("status", "FAILED");
+            resp.put("message", result);
+            return ResponseEntity.badRequest().body(resp);
+        }
     }
 
     @GetMapping("/balance/{cardNumber}")
@@ -44,6 +55,7 @@ public class ProcessingController {
             resp.put("exists", true);
             resp.put("balance", card.getBalance());
             resp.put("customerName", card.getCustomerName());
+            resp.put("cardNumber", card.getCardNumber());
         }
         return resp;
     }
@@ -58,3 +70,4 @@ public class ProcessingController {
         return cardService.getAllTransactions();
     }
 }
+

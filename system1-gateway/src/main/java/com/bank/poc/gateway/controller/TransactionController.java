@@ -19,37 +19,59 @@ public class TransactionController {
     private final RestTemplate restTemplate = new RestTemplate();
 
     @PostMapping("/transaction")
-    public ResponseEntity<Map<String, String>> handle(@RequestBody TransactionRequest req) {
-        Map<String, String> resp = new HashMap<>();
+    public ResponseEntity<Map<String, Object>> handleTransaction(@RequestBody TransactionRequest req) {
+        Map<String, Object> resp = new HashMap<>();
 
-        if (req.getCardNumber() == null || req.getPin() == null
-                || req.getAmount() == null || req.getAmount() <= 0
-                || req.getType() == null
-                || !(req.getType().equalsIgnoreCase("withdraw")
-                     || req.getType().equalsIgnoreCase("topup"))) {
-            resp.put("result", "FAILED: Invalid input parameters");
+        // Validation: cardNumber
+        if (req.getCardNumber() == null || req.getCardNumber().trim().isEmpty()) {
+            resp.put("status", "FAILED");
+            resp.put("message", "Card number is required");
             return ResponseEntity.badRequest().body(resp);
         }
 
-        if (!req.getCardNumber().startsWith("4")) {
-            resp.put("result", "FAILED: Card range not supported");
-            return ResponseEntity.status(HttpStatus.OK).body(resp);
+        // Validation: pin
+        if (req.getPin() == null || req.getPin().trim().isEmpty()) {
+            resp.put("status", "FAILED");
+            resp.put("message", "PIN is required");
+            return ResponseEntity.badRequest().body(resp);
         }
 
-        Map<String, Object> body = new HashMap<>();
-        body.put("cardNumber", req.getCardNumber());
-        body.put("pin", req.getPin());
-        body.put("amount", req.getAmount());
-        body.put("type", req.getType());
+        // Validation: amount > 0
+        if (req.getAmount() == null || req.getAmount() <= 0) {
+            resp.put("status", "FAILED");
+            resp.put("message", "Amount must be greater than 0");
+            return ResponseEntity.badRequest().body(resp);
+        }
 
-        Map<?, ?> system2Resp = restTemplate.postForObject(SYSTEM2_URL, body, Map.class);
-        resp.put("result", system2Resp != null ? system2Resp.get("result").toString()
-                                               : "FAILED: Unknown error");
-        return ResponseEntity.ok(resp);
-    }
+        // Validation: type is withdraw or topup
+        if (req.getType() == null || req.getType().trim().isEmpty()) {
+            resp.put("status", "FAILED");
+            resp.put("message", "Transaction type is required");
+            return ResponseEntity.badRequest().body(resp);
+        }
 
-    @GetMapping("/ping")
-    public ResponseEntity<String> ping() {
-        return ResponseEntity.ok("pong");
+        if (!req.getType().equalsIgnoreCase("withdraw") && !req.getType().equalsIgnoreCase("topup")) {
+            resp.put("status", "FAILED");
+            resp.put("message", "Transaction type must be 'withdraw' or 'topup'");
+            return ResponseEntity.badRequest().body(resp);
+        }
+
+        // Routing Logic: Only cards starting with '4'
+        if (!req.getCardNumber().startsWith("4")) {
+            resp.put("status", "FAILED");
+            resp.put("message", "Card range not supported");
+            return ResponseEntity.ok(resp);
+        }
+
+        // Forward to System 2
+        try {
+            Map<String, Object> system2Resp = restTemplate.postForObject(SYSTEM2_URL, req, Map.class);
+            return ResponseEntity.ok(system2Resp);
+        } catch (Exception e) {
+            resp.put("status", "FAILED");
+            resp.put("message", "System 2 processing error: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(resp);
+        }
     }
 }
+

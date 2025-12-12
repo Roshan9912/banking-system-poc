@@ -6,6 +6,15 @@ public class TransactionRequest {
     private double amount;
     private String type;
 
+    public TransactionRequest() {}
+
+    public TransactionRequest(String cardNumber, String pin, double amount, String type) {
+        this.cardNumber = cardNumber;
+        this.pin = pin;
+        this.amount = amount;
+        this.type = type;
+    }
+
     public String getCardNumber() {
         return cardNumber;
     }
